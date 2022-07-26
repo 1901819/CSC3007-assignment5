@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="" />
+    <title>Singapore Population Distribution</title>
+
+    <!-- CSS CDN -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.8.0/leaflet.css" />
+
+    <!-- Custom CSS -->
+    <style>
+      .container {
+        max-width: 1200px;
+      }
+
+      .header {
+        max-width: 600px;
+      }
+
+      #map {
+        width: 1000px;
+        height: 600px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .circle {
+        display: table-cell;
+        text-align: center;
+        vertical-align: middle;
+        border-radius: 50%;
+        border-style: solid;
+        font-size: 16px;
+        font-weight: bold;
+      }
+      .circle.good {
+        background: rgba(0, 209, 0, 0.2);
+        border-color: #00d100;
+        color: black;
+      }
+      .circle.moderate {
+        background: rgba(38, 110, 160, 0.2);
+        border-color: #266ea0;
+        color: black;
+      }
+      .circle.unhealthy {
+        background: rgba(249, 207, 32, 0.2);
+        border-color: #f9cf20;
+        color: black;
+      }
+      .circle.veryUnhealthy {
+        background: rgba(247, 170, 30, 0.2);
+        border-color: #f7aa1e;
+        color: black;
+      }
+      .circle.hazardous {
+        background: rgba(205, 22, 22, 0.2);
+        border-color: #cd1616;
+        color: black;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container py-3">
+      <header>
+        <div class="header p-3 pb-md-4 mx-auto text-center">
+          <h1 class="display-4 fw-normal">Singapore PSI Readings</h1>
+          <p class="fs-5 text-muted">
+            Get the latest PSI readings in Singapore. Readings are updated every 24 hours, please refresh the page to
+            view the latest readings.
+          </p>
+        </div>
+      </header>
+
+      <main>
+        <div id="map"></div>
+      </main>
+    </div>
+
+    <!-- Required JS files -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/js/bootstrap.min.js"
+      integrity="sha384-kjU+l4N0Yf4ZOJErLsIcvOU2qSb74wXpOhqTvwVx3OElZRweTnQ6d31fXEoRD1Jy"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.8.0/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+
+    <!-- Main Script -->
+    <script type="text/javascript">
+      // Map tiles
+      let tiles = new L.tileLayer('https://maps-{s}.onemap.sg/v3/Default/{z}/{x}/{y}.png', {
+        detectRetina: true,
+        maxZoom: 18,
+        minZoom: 11,
+        //Do not remove this attribution
+        attribution:
+          '<img src="https://docs.onemap.sg/maps/images/oneMap64-01.png" style="height:20px;width:20px;">' +
+          'New OneMap | Map data © contributors, <a href="http://SLA.gov.sg">Singapore Land Authority</a>',
+      })
+
+      // Map
+      let map = new L.Map('map', {
+        center: [1.347833, 103.809357],
+        zoom: 11,
+        maxBounds: L.latLngBounds(L.latLng(1.1, 103.5), L.latLng(1.5, 104.3)),
+      }).addLayer(tiles)
+
+      $(document).ready(function () {
+        $.getJSON('https://api.data.gov.sg/v1/environment/psi', function (data) {
+          let region = data.region_metadata
+          let psi_daily = data.items[0].readings.psi_twenty_four_hourly
+
+          // Add circles with text for each region
+          region.forEach(function (region) {
+            var psiCondition = ""
+
+            if (psi_daily[region.name] > 0 && psi_daily[region.name] <= 50) {
+                psiCondition = "good"
+            } else if (psi_daily[region.name] > 50 && psi_daily[region.name] <= 100) {
+                psiCondition = "moderate"
+            } else if (psi_daily[region.name] > 100 && psi_daily[region.name] <= 200) {
+                psiCondition = "unhealthy"
+            } else if (psi_daily[region.name] > 200 && psi_daily[region.name] <= 300) {
+                psiCondition = "veryUnhealthy"
+            } else if (psi_daily[region.name] > 300) {
+                psiCondition = "hazardous"
+            }
+
+            addCircleWithText(
+              [region.label_location.latitude, region.label_location.longitude],
+              psi_daily[region.name],
+              psi_daily[region.name] / 1.5,
+              3,
+              psiCondition
+            ).addTo(map)
+          })
+
+          // Custom function to create cirle with text
+          function addCircleWithText(latLng, txt, radius, borderWidth, circleClass) {
+            var size = radius * 2
+            var style = 'style="width: ' + size + 'px; height: ' + size + 'px; border-width: ' + borderWidth + 'px;"'
+            var iconSize = size + borderWidth * 2
+            var icon = L.divIcon({
+              html: '<span class="' + 'circle ' + circleClass + '" ' + style + '>' + txt + '</span>',
+              className: '',
+              iconSize: [iconSize, iconSize],
+            })
+            var marker = L.marker(latLng, {
+              icon: icon,
+            })
+            return marker
+          }
+        })
+      })
+    </script>
+  </body>
+</html>
